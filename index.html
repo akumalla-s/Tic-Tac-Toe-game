@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Tic Tac Toe</title>
+    <style>
+      h2 {
+        margin-left: 50px;
+        color: blue;
+        font-family: Arial, Helvetica, sans-serif;
+      }
+      h4 {
+        margin-left: 50px;
+        color: darkblue;
+        font-family: Arial, Helvetica, sans-serif;
+      }
+      td {
+        width: 50px;
+        height: 50px;
+        text-align: center;
+        font-size: 30px;
+        border: 1px solid lightblue;
+        margin-left: 40;
+      }
+      button {
+        margin-bottom: 30px;
+      }
+      .button-start {
+        font-family: Arial, Helvetica, sans-serif;
+        margin-right: 60px;
+        background-color: green;
+        color: whitesmoke;
+        cursor: pointer;
+      }
+      .button-start:hover {
+        opacity: 0.8;
+      }
+      .button-start:active {
+        opacity: 0.5;
+      }
+      .button-reset {
+        font-family: Arial, Helvetica, sans-serif;
+        background-color: red;
+        color: whitesmoke;
+        cursor: pointer;
+      }
+      .button-reset:hover {
+        opacity: 0.8;
+      }
+      .button-reset:active {
+        opacity: 0.5;
+      }
+      .turn-box {
+        text-align: center;
+        display: flex;
+        margin-bottom: 30px;
+        border: none;
+        font-family: Arial, Helvetica, sans-serif;
+        color: springgreen;
+      }
+      .history-list {
+        color: darkblue;
+        font-family: Arial, Helvetica, sans-serif;
+        text-align: left;
+      }
+      .entire-board {
+        margin-left: 300px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="entire-board">
+      <h2>Tic Tac Toe</h2>
+      <button id="start" class="button-start">Start Game</button>
+      <button id="reset" class="button-reset">Reset Game</button>
+
+      <input class="turn-box" type="text" id="turn" readonly />
+
+      <!--3x3 table-->
+      <table class="table" id="board" style="display: none">
+        <tr>
+          <td id="0"></td>
+          <td id="1"></td>
+          <td id="2"></td>
+        </tr>
+        <tr>
+          <td id="3"></td>
+          <td id="4"></td>
+          <td id="5"></td>
+        </tr>
+        <tr>
+          <td id="6"></td>
+          <td id="7"></td>
+          <td id="8"></td>
+        </tr>
+      </table>
+
+      <h4>Winning History</h4>
+
+      <div class="history-list" id="history"></div>
+    </div>
+
+    <script>
+      //Declare variables
+      var board = document.getElementById("board");
+      var cells = board.getElementsByTagName("td");
+      var startButton = document.getElementById("start");
+      var resetButton = document.getElementById("reset");
+      var turnBox = document.getElementById("turn");
+      var currentPlayer = "X";
+      var gameOver = false;
+      var winner = "";
+      var historyArr = [];
+      var raw;
+      var serverOnline = 1;
+
+      //Get data from server when page reloads
+      document.addEventListener("DOMContentLoaded", function () {
+        render();
+      });
+
+      //To generate current player letter in the cells.
+      for (var i = 0; i < cells.length; i++) {
+        cells[i].addEventListener("click", function (event) {
+          if (!gameOver) {
+            if (event.target.textContent === "") {              
+              event.target.textContent = currentPlayer;
+              //code for player turn
+              var playerTurn;
+              if (currentPlayer === "X") {
+                playerTurn = "O";
+              } else if (currentPlayer === "O") {
+                playerTurn = "X";
+              }
+              turnBox.value = "Player " + playerTurn + "'s turn";
+
+              raw = JSON.stringify({
+                cell0: cells[0].innerHTML,
+                cell1: cells[1].innerHTML,
+                cell2: cells[2].innerHTML,
+                cell3: cells[3].innerHTML,
+                cell4: cells[4].innerHTML,
+                cell5: cells[5].innerHTML,
+                cell6: cells[6].innerHTML,
+                cell7: cells[7].innerHTML,
+                cell8: cells[8].innerHTML,
+              });
+
+              checkForWinner();
+              if (serverOnline === 0) {
+                checkForWinnerOffline();
+              }
+              
+             currentPlayer = currentPlayer === "X" ? "O" : "X";
+            }
+          }
+        });
+      }
+
+      function checkForWinner() {
+        var myHeaders = new Headers();
+        myHeaders.append("Content-Type", "application/json");
+
+        var requestOptions = {
+          method: "POST",
+          headers: myHeaders,
+          body: raw,
+        };
+        fetch("http://localhost:5000/checkForWinner", requestOptions)
+          .then(async (response) => {
+            const data = await response.json();
+            //console.log(data);
+            if (data.status === "X") {
+              alert("Player X wins!");
+              afterWin();
+            } else if (data.status === "O") {
+              alert("Player O wins!");
+              afterWin();
+            } else if (data.status === "Tie") {
+              alert("Tie");
+              afterWin();
+            }
+          })
+          .catch((error) => {
+            serverOnline = 0;
+          });
+      }
+
+      function checkForWinnerOffline() {
+        var winningCombinations = [
+          [0, 1, 2],
+          [3, 4, 5],
+          [6, 7, 8],
+          [0, 3, 6],
+          [1, 4, 7],
+          [2, 5, 8],
+          [0, 4, 8],
+          [2, 4, 6],
+        ];
+
+        for (var i = 0; i < winningCombinations.length; i++) {
+          var combination = winningCombinations[i];
+          if (
+            cells[combination[0]].textContent === currentPlayer &&
+            cells[combination[1]].textContent === currentPlayer &&
+            cells[combination[2]].textContent === currentPlayer
+          ) {
+            gameOver = true;
+            winner = currentPlayer;
+            historyArr.push(winner);
+            alert("Player " + currentPlayer + " wins!");
+            afterWin();
+          }
+        }
+
+        //Tie condition
+        var filledCells = 0;
+        for (var i = 0; i < cells.length; i++) {
+          if (cells[i].textContent !== "") {
+            filledCells++;
+          }
+        }
+        if (!gameOver && filledCells === 9) {
+          gameOver = true;
+          winner = "Tie";
+          historyArr.push(winner);
+          alert("It is a tie!");
+          afterWin();
+        }
+      }
+
+      function afterWin() {
+        render();
+        resetCells();
+        board.style.display = "none";
+      }
+
+      //Displays the game board on clicking start button
+      startButton.addEventListener("click", function () {
+        board.style.display = "table";
+        currentPlayer = "X";
+        gameOver = false;
+      });
+
+      //Resets the data and cells when reset game button clicked
+      resetButton.addEventListener("click", resetCells);
+      function resetCells() {
+        for (var i = 0; i < cells.length; i++) {
+          cells[i].textContent = "";
+          turnBox.value = "";
+        }
+        currentPlayer = "X";
+        gameOver = false;
+      }
+
+      function render() {
+        var myHeaders = new Headers();
+        myHeaders.append("Content-Type", "application/json");
+        var requestOptions = {
+          method: "GET",
+          headers: myHeaders,
+        };
+        fetch("http://localhost:5000/storage", requestOptions)
+          .then(async (response) => {
+            const data = await response.json();
+            historyArr = data;
+            displayHistory();
+          })
+          .catch((error) => {
+            displayHistory();
+          });
+      }
+      function displayHistory() {
+        document.getElementById("history").innerHTML = "";
+        for (var i = 0; i < historyArr.length; i++) {
+          document.getElementById("history").innerHTML =
+            document.getElementById("history").innerHTML +
+            historyArr[i] +
+            " is the winner" +
+            "<br/>";
+        }
+      }
+    </script>
+  </body>
+</html>
